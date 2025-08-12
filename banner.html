@@ -70,9 +70,6 @@
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { Line2 } from 'three/addons/lines/Line2.js';
-        import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
-        import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 
         let scene, camera, renderer, controls;
         let particle, trail;
@@ -139,17 +136,21 @@
             particle = new THREE.Mesh(particleGeometry, particleMaterial);
             scene.add(particle);
 
-            // Use Line2 for a thicker, better-looking trail
-            const trailGeometry = new LineGeometry();
-            const trailMaterial = new LineMaterial({
-                color: 0x00BFFF,
-                linewidth: 0.005, // In world units. Adjust for desired thickness.
+            // A single trail object that will use vertex colors for fading
+            const trailGeometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(trailLength * 3);
+            const colors = new Float32Array(trailLength * 3); // For vertex colors
+
+            trailGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            trailGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            // The material must be enabled to use vertex colors
+            const trailMaterial = new THREE.LineBasicMaterial({ 
                 vertexColors: true,
-                dashed: false,
-                alphaToCoverage: true,
+                linewidth: 2 // Note: linewidth > 1 has no effect on most platforms for THREE.Line
             });
             
-            trail = new Line2(trailGeometry, trailMaterial);
+            trail = new THREE.Line(trailGeometry, trailMaterial);
             scene.add(trail);
         }
 
@@ -161,24 +162,34 @@
                 const currentPoint = trajectoryPoints[animationFrame];
                 particle.position.copy(currentPoint);
 
-                // Update the trail geometry and colors for a smooth fade
-                const positions = [];
-                const colors = [];
+                // Update the single trail with vertex colors for a smooth fade
+                const trailPositions = trail.geometry.attributes.position;
+                const trailColors = trail.geometry.attributes.color;
+                
+                const start = Math.max(0, animationFrame - trailLength);
+                let vertexIndex = 0;
+                
                 const trailColor = new THREE.Color(0x0077FF); // A vibrant blue
                 const fadeColor = new THREE.Color(0xffffff); // Fade to white (background color)
 
-                const start = Math.max(0, animationFrame - trailLength);
-                for (let i = start; i < animationFrame; i++) {
+                for (let i = animationFrame - 1; i >= start; i--) {
+                    // This loop structure prevents gaps by drawing from the current point backwards
+                    if (i < 0) continue;
                     const point = trajectoryPoints[i];
-                    positions.push(point.x, point.y, point.z);
-                    
+                    trailPositions.setXYZ(vertexIndex, point.x, point.y, point.z);
+
+                    // Calculate fade factor based on "age" of the point
                     const fade = (animationFrame - i) / trailLength;
-                    const currentColor = trailColor.clone().lerp(fadeColor, fade * fade);
-                    colors.push(currentColor.r, currentColor.g, currentColor.b);
+                    const currentColor = trailColor.clone().lerp(fadeColor, fade * fade); // Use fade^2 for a faster fade-out
+                    
+                    trailColors.setXYZ(vertexIndex, currentColor.r, currentColor.g, currentColor.b);
+                    
+                    vertexIndex++;
                 }
 
-                trail.geometry.setPositions(positions);
-                trail.geometry.setColors(colors);
+                trail.geometry.setDrawRange(0, vertexIndex);
+                trailPositions.needsUpdate = true;
+                trailColors.needsUpdate = true;
 
                 animationFrame = (animationFrame + 1) % trajectoryPoints.length;
             }
