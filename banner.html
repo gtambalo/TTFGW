@@ -5,10 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Workshop Banner - Interactive Kerr Orbit</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
     <style>
+        /* This @font-face rule defines your custom font. */
+        @font-face {
+            font-family: 'Computer Modern';
+            /* Using the correct URL for the TTF font file */
+            src: url('https://gtambalo.github.io/TTFGW/cmr17.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
         body {
             background-color: #f3f4f6;
             display: flex;
@@ -19,7 +25,8 @@
             padding: 1rem;
         }
         .latex-font {
-            font-family: 'STIX Two Text', serif;
+            /* Use your custom font, with a standard serif font as a fallback */
+            font-family: 'Computer Modern', serif;
         }
         #canvas-container {
             position: relative;
@@ -45,9 +52,7 @@
                 <h1 class="latex-font text-4xl lg:text-5xl font-bold text-gray-800 leading-tight">
                     Theoretical Tools for Gravitational Wave Physics
                 </h1>
-                <p class="mt-4 text-gray-600 text-lg">
-                    A workshop on the frontiers of gravitational theory and observation.
-                </p>
+                <!-- The subtitle paragraph has been removed -->
             </div>
         </div>
 
