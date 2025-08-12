@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workshop Banner - Interactive Kerr Orbit</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f3f4f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 1rem;
+        }
+        .latex-font {
+            font-family: 'STIX Two Text', serif;
+        }
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            min-height: 300px; /* Ensure a minimum height on mobile */
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Workshop Banner Container -->
+    <div class="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col md:flex-row items-stretch">
+        
+        <!-- Left Side: Title and Information -->
+        <div class="p-8 md:p-12 lg:p-16 flex flex-col justify-center text-center md:text-left w-full md:w-1/2">
+            <div>
+                <h1 class="latex-font text-4xl lg:text-5xl font-bold text-gray-800 leading-tight">
+                    Theoretical Tools for Gravitational Wave Physics
+                </h1>
+                <p class="mt-4 text-gray-600 text-lg">
+                    A workshop on the frontiers of gravitational theory and observation.
+                </p>
+            </div>
+        </div>
+
+        <!-- Right Side: Canvas Container for the 3D Animation -->
+        <div id="canvas-container" class="w-full md:w-1/2">
+            <!-- The Three.js canvas will be inserted here -->
+        </div>
+
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { Line2 } from 'three/addons/lines/Line2.js';
+        import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+        import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+
+        let scene, camera, renderer, controls;
+        let particle, trail;
+        let trajectoryPoints = [];
+        let animationFrame = 0;
+        
+        const trailLength = 800; // Increased length for a longer trail
+        const canvasContainer = document.getElementById('canvas-container');
+
+        // --- 1. Initialization ---
+        function init() {
+            scene = new THREE.Scene();
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            canvasContainer.appendChild(renderer.domElement);
+
+            camera = new THREE.PerspectiveCamera(75, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
+            camera.position.set(7, 3.5, 7);
+            
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.3;
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            const bhGeometry = new THREE.SphereGeometry(1, 32, 32);
+            const bhMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const blackHole = new THREE.Mesh(bhGeometry, bhMaterial);
+            scene.add(blackHole);
+
+            loadTrajectory();
+            
+            onWindowResize();
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // --- 2. Load Trajectory Data ---
+        async function loadTrajectory() {
+            try {
+                const response = await fetch('trajectory.json');
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+                trajectoryPoints = data.map(p => new THREE.Vector3(p.x, p.y, p.z));
+                createSceneObjects();
+                animate();
+            } catch (error) {
+                console.error("Could not load or parse trajectory data:", error);
+                canvasContainer.innerHTML = `<div class="p-4 text-red-500">Error: Could not load <code>trajectory.json</code>.</div>`;
+            }
+        }
+
+        // --- 3. Create Scene Objects from Data ---
+        function createSceneObjects() {
+            // Larger particle
+            const particleGeometry = new THREE.SphereGeometry(0.15, 16, 16); 
+            // Brighter blue color
+            const particleMaterial = new THREE.MeshBasicMaterial({ color: 0x00BFFF }); 
+            particle = new THREE.Mesh(particleGeometry, particleMaterial);
+            scene.add(particle);
+
+            // Use Line2 for a thicker, better-looking trail
+            const trailGeometry = new LineGeometry();
+            const trailMaterial = new LineMaterial({
+                color: 0x00BFFF,
+                linewidth: 0.005, // In world units. Adjust for desired thickness.
+                vertexColors: true,
+                dashed: false,
+                alphaToCoverage: true,
+            });
+            
+            trail = new Line2(trailGeometry, trailMaterial);
+            scene.add(trail);
+        }
+
+        // --- 4. Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (trajectoryPoints.length > 0) {
+                const currentPoint = trajectoryPoints[animationFrame];
+                particle.position.copy(currentPoint);
+
+                // Update the trail geometry and colors for a smooth fade
+                const positions = [];
+                const colors = [];
+                const trailColor = new THREE.Color(0x0077FF); // A vibrant blue
+                const fadeColor = new THREE.Color(0xffffff); // Fade to white (background color)
+
+                const start = Math.max(0, animationFrame - trailLength);
+                for (let i = start; i < animationFrame; i++) {
+                    const point = trajectoryPoints[i];
+                    positions.push(point.x, point.y, point.z);
+                    
+                    const fade = (animationFrame - i) / trailLength;
+                    const currentColor = trailColor.clone().lerp(fadeColor, fade * fade);
+                    colors.push(currentColor.r, currentColor.g, currentColor.b);
+                }
+
+                trail.geometry.setPositions(positions);
+                trail.geometry.setColors(colors);
+
+                animationFrame = (animationFrame + 1) % trajectoryPoints.length;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // --- 5. Event Handlers ---
+        function onWindowResize() {
+            const width = canvasContainer.clientWidth;
+            const height = canvasContainer.clientHeight;
+            
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+
+        // --- Run ---
+        init();
+    </script>
+</body>
+</html>
