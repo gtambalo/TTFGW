@@ -70,13 +70,19 @@
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { Line2 } from 'three/addons/lines/Line2.js';
+        import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+        import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 
-        let scene, camera, renderer, controls;
+        let scene, camera, renderer, controls, composer, bokehPass;
         let particle, trail;
         let trajectoryPoints = [];
         let animationFrame = 0;
         
-        const trailLength = 800; // Increased length for a longer trail
+        const trailLength = 800;
         const canvasContainer = document.getElementById('canvas-container');
 
         // --- 1. Initialization ---
@@ -103,14 +109,33 @@
             const bhMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
             const blackHole = new THREE.Mesh(bhGeometry, bhMaterial);
             scene.add(blackHole);
+            
+            // Post-processing for Depth of Field
+            setupPostprocessing();
 
             loadTrajectory();
             
             onWindowResize();
             window.addEventListener('resize', onWindowResize);
         }
+        
+        // --- 2. Setup Post-processing ---
+        function setupPostprocessing() {
+            composer = new EffectComposer(renderer);
+            const renderPass = new RenderPass(scene, camera);
+            composer.addPass(renderPass);
 
-        // --- 2. Load Trajectory Data ---
+            bokehPass = new BokehPass(scene, camera, {
+                focus: 10.0,
+                aperture: 0.0003, // How much blur
+                maxblur: 0.005, // The limit of the blur
+                width: window.innerWidth,
+                height: window.innerHeight
+            });
+            composer.addPass(bokehPass);
+        }
+
+        // --- 3. Load Trajectory Data ---
         async function loadTrajectory() {
             try {
                 // Using the correct, live URL for the trajectory data
@@ -127,34 +152,29 @@
             }
         }
 
-        // --- 3. Create Scene Objects from Data ---
+        // --- 4. Create Scene Objects from Data ---
         function createSceneObjects() {
-            // Larger particle
-            const particleGeometry = new THREE.SphereGeometry(0.15, 16, 16); 
-            // Brighter blue color
-            const particleMaterial = new THREE.MeshBasicMaterial({ color: 0x00BFFF }); 
+            // Larger, more vibrant particle
+            const particleGeometry = new THREE.SphereGeometry(0.2, 16, 16); 
+            const particleMaterial = new THREE.MeshBasicMaterial({ color: 0x00FFFF }); 
             particle = new THREE.Mesh(particleGeometry, particleMaterial);
             scene.add(particle);
 
-            // A single trail object that will use vertex colors for fading
-            const trailGeometry = new THREE.BufferGeometry();
-            const positions = new Float32Array(trailLength * 3);
-            const colors = new Float32Array(trailLength * 3); // For vertex colors
-
-            trailGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            trailGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-            // The material must be enabled to use vertex colors
-            const trailMaterial = new THREE.LineBasicMaterial({ 
+            // Use Line2 for a thicker, better-looking trail
+            const trailGeometry = new LineGeometry();
+            const trailMaterial = new LineMaterial({
+                color: 0x00BFFF,
+                linewidth: 0.005, // In world units. Adjust for desired thickness.
                 vertexColors: true,
-                linewidth: 2 // Note: linewidth > 1 has no effect on most platforms for THREE.Line
+                dashed: false,
+                alphaToCoverage: true,
             });
             
-            trail = new THREE.Line(trailGeometry, trailMaterial);
+            trail = new Line2(trailGeometry, trailMaterial);
             scene.add(trail);
         }
 
-        // --- 4. Animation Loop ---
+        // --- 5. Animation Loop ---
         function animate() {
             requestAnimationFrame(animate);
 
@@ -162,43 +182,34 @@
                 const currentPoint = trajectoryPoints[animationFrame];
                 particle.position.copy(currentPoint);
 
-                // Update the single trail with vertex colors for a smooth fade
-                const trailPositions = trail.geometry.attributes.position;
-                const trailColors = trail.geometry.attributes.color;
-                
+                // Update the trail geometry and colors for a smooth fade
+                const positions = [];
+                const colors = [];
+                const trailColor = new THREE.Color(0x00BFFF);
+                const fadeColor = new THREE.Color(0x000000);
+
                 const start = Math.max(0, animationFrame - trailLength);
-                let vertexIndex = 0;
-                
-                const trailColor = new THREE.Color(0x0077FF); // A vibrant blue
-                const fadeColor = new THREE.Color(0xffffff); // Fade to white (background color)
-
-                for (let i = animationFrame - 1; i >= start; i--) {
-                    // This loop structure prevents gaps by drawing from the current point backwards
-                    if (i < 0) continue;
+                for (let i = start; i < animationFrame; i++) {
                     const point = trajectoryPoints[i];
-                    trailPositions.setXYZ(vertexIndex, point.x, point.y, point.z);
-
-                    // Calculate fade factor based on "age" of the point
+                    positions.push(point.x, point.y, point.z);
+                    
                     const fade = (animationFrame - i) / trailLength;
-                    const currentColor = trailColor.clone().lerp(fadeColor, fade * fade); // Use fade^2 for a faster fade-out
-                    
-                    trailColors.setXYZ(vertexIndex, currentColor.r, currentColor.g, currentColor.b);
-                    
-                    vertexIndex++;
+                    const currentColor = trailColor.clone().lerp(fadeColor, fade * fade);
+                    colors.push(currentColor.r, currentColor.g, currentColor.b);
                 }
 
-                trail.geometry.setDrawRange(0, vertexIndex);
-                trailPositions.needsUpdate = true;
-                trailColors.needsUpdate = true;
+                trail.geometry.setPositions(positions);
+                trail.geometry.setColors(colors);
 
                 animationFrame = (animationFrame + 1) % trajectoryPoints.length;
             }
 
             controls.update();
-            renderer.render(scene, camera);
+            // Use the composer to render the scene with post-processing effects
+            composer.render();
         }
 
-        // --- 5. Event Handlers ---
+        // --- 6. Event Handlers ---
         function onWindowResize() {
             const width = canvasContainer.clientWidth;
             const height = canvasContainer.clientHeight;
@@ -206,6 +217,8 @@
             camera.aspect = width / height;
             camera.updateProjectionMatrix();
             renderer.setSize(width, height);
+            composer.setSize(width, height);
+            bokehPass.uniforms['aspect'].value = width / height;
         }
 
         // --- Run ---
