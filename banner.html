@@ -6,16 +6,8 @@
     <title>Workshop Banner - Interactive Kerr Orbit</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* This @font-face rule defines your custom font. */
-        @font-face {
-            font-family: 'Computer Modern';
-            /* Using the correct URL for the TTF font file */
-            /* src: url('https://gtambalo.github.io/TTFGW/cmr17.ttf') format('truetype'); */
-            /* src: url('https://gtambalo.github.io/TTFGW/cmr12.ttf') format('truetype'); */
-            src: url('https://gtambalo.github.io/TTFGW/cmmi17.ttf') format('truetype');
-            font-weight: normal;
-            font-style: italic;
-        }
+        /* Import the Roboto font from Google Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400&display=swap');
 
         body {
             background-color: #f3f4f6;
@@ -27,8 +19,8 @@
             padding: 1rem;
         }
         .latex-font {
-            /* Use your custom font, with a standard serif font as a fallback */
-            font-family: 'Computer Modern', serif;
+            /* Use Roboto font with a standard sans-serif font as a fallback */
+            font-family: 'Roboto', sans-serif;
         }
         #canvas-container {
             position: relative;
@@ -51,7 +43,8 @@
         <!-- Left Side: Title and Information -->
         <div class="p-8 md:p-12 lg:p-16 flex flex-col justify-center text-center md:text-left w-full md:w-1/2">
             <div>
-                <h1 class="latex-font text-4xl lg:text-5xl font-bold text-gray-800 leading-tight">
+                <!-- Removed 'font-bold' class to make the text regular weight -->
+                <h1 class="latex-font text-4xl lg:text-5xl text-gray-800 leading-tight">
                     Theoretical Tools for Gravitational Wave Physics
                 </h1>
                 <!-- The subtitle paragraph has been removed -->
