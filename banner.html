@@ -116,7 +116,9 @@
         // --- 2. Load Trajectory Data ---
         async function loadTrajectory() {
             try {
-                const response = await fetch('trajectory.json');
+                // Using the correct, live URL for the trajectory data
+                const trajectoryURL = 'https://gtambalo.github.io/TTFGW/trajectory.json';
+                const response = await fetch(trajectoryURL);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
                 trajectoryPoints = data.map(p => new THREE.Vector3(p.x, p.y, p.z));
@@ -124,7 +126,7 @@
                 animate();
             } catch (error) {
                 console.error("Could not load or parse trajectory data:", error);
-                canvasContainer.innerHTML = `<div class="p-4 text-red-500">Error: Could not load <code>trajectory.json</code>.</div>`;
+                canvasContainer.innerHTML = `<div class="p-4 text-red-500">Error: Could not load trajectory data. Please check the URL in the script.</div>`;
             }
         }
 
